@@ -7,3 +7,7 @@ domain_resolvers:
     resolvers:
       - 1.1.1.1:53
       - 4.2.2.2:53
+kafka:
+  servers: localhost:9092
+  client_id: dns-server
+  log_topic: dns.logs

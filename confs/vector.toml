@@ -1,41 +1,42 @@
 [sources.kafka]
 type = "kafka"
-bootstrap_servers = "kafka:9092"
+bootstrap_servers = "kafka:19092"
 group_id = "vector-group"
 topics = ["dns.logs"]
 
 [transforms.parse_json]
-type = "remap" # Vector’s VRL scripting language
+type = "remap"
 inputs = ["kafka"]
 source = '''
 structured = parse_json!(.message)
-.timestamp = to_timestamp!(structured.timestamp)
+
+.time = structured.time
+.level = structured.level
 .domain = structured.domain
 .client_ip = structured.client_ip
 .qtype = structured.qtype
 .resolver = structured.resolver
-.time = structured.time
-.level = structured.level
-.rcode = structured.rcode
-.ttl = structured.ttl
-.upstream_latency_ms = structured.upstream_latency_ms
-'''
 
 [sinks.loki]
 type = "loki"
 inputs = ["parse_json"]
 endpoint = "http://loki:3100"
 encoding.codec = "json"
+labels.job = "dns-resolver"
 labels.domain = "{{ .domain }}"
 labels.client_ip = "{{ .client_ip }}"
 labels.qtype = "{{ .qtype }}"
 labels.resolver = "{{ .resolver }}"
 healthcheck.enabled = true
 
+[sinks.loki.request]
+retry_attempts = 10
+retry_backoff_secs = 2
+
 [sinks.clickhouse]
 type = "clickhouse"
 inputs = ["parse_json"]
 database = "default"
-table = "dns_queries"
+table = "dns_logs"
 endpoint = "http://clickhouse:8123"
 compression = "none"

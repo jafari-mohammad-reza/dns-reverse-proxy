@@ -25,13 +25,20 @@ type Log struct {
 	Qtype    string   `json:"qtype"`
 	Resolver string   `json:"resolver"`
 }
+type ILogger interface {
+	Init() error
+	Info(log Log) error
+	Warn(log Log) error
+	Error(log Log) error
+	Debug(log Log) error
+}
 type Logger struct {
 	conf     *Conf
 	mu       sync.Mutex
 	producer *kafka.Producer
 }
 
-func NewLogger(conf *Conf) *Logger {
+func NewLogger(conf *Conf) ILogger {
 	return &Logger{
 		conf: conf,
 		mu:   sync.Mutex{},
@@ -80,6 +87,7 @@ func (l *Logger) write(level LogLevel, entry Log) error {
 	return nil
 }
 func (l *Logger) Info(log Log) error {
+	fmt.Println("send log", log)
 	return l.write(Info, log)
 }
 func (l *Logger) Warn(log Log) error {

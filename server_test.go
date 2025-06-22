@@ -21,6 +21,24 @@ func waitForPort(address string, timeout time.Duration) error {
 	return ErrTimeout
 }
 
+type MockLogger struct{}
+
+func (m MockLogger) Init() error {
+	return nil
+}
+func (m MockLogger) Info(log Log) error {
+	return nil
+}
+func (m MockLogger) Warn(log Log) error {
+	return nil
+}
+func (m MockLogger) Debug(log Log) error {
+	return nil
+}
+func (m MockLogger) Error(log Log) error {
+	return nil
+}
+
 var ErrTimeout = &net.OpError{Op: "dial", Net: "udp", Addr: nil, Err: timeoutErr{}}
 
 type timeoutErr struct{}
@@ -34,7 +52,8 @@ func TestServerHandleRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
-	server := NewServer(conf)
+	logger := MockLogger{}
+	server := NewServer(conf, logger)
 
 	go func() {
 		if err := server.Start(); err != nil {

@@ -13,9 +13,10 @@ type Server struct {
 	conf            *Conf
 	dnsServer       *dns.Server
 	domainResolvers map[string][]string
+	logger          ILogger
 }
 
-func NewServer(conf *Conf) *Server {
+func NewServer(conf *Conf, logger ILogger) *Server {
 	domainResolvers := make(map[string][]string, len(conf.DomainResolvers))
 	for _, resolver := range conf.DomainResolvers {
 		domainResolvers[fmt.Sprintf("%s.", resolver.Domain)] = resolver.Resolvers
@@ -23,6 +24,7 @@ func NewServer(conf *Conf) *Server {
 	return &Server{
 		conf:            conf,
 		domainResolvers: domainResolvers,
+		logger:          logger,
 	}
 }
 
@@ -98,6 +100,14 @@ func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream 
 		log.Printf("[-] Upstream %s failed: %v", upstream, err)
 		return nil, errors.New("upstream query failed")
 	}
+	s.logger.Info(Log{
+		Time:     time.Now().Format(time.RFC3339Nano),
+		Level:    Info,
+		Domain:   domainName,
+		ClientIp: "client-ip",
+		Qtype:    dns.TypeToString[r.Question[0].Qtype],
+		Resolver: upstream,
+	})
 	if resp != nil && resp.Rcode == dns.RcodeSuccess {
 		return resp, nil
 	}
