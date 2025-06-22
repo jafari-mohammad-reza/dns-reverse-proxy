@@ -1,0 +1,9 @@
+port: 5354
+upstream_addrs:
+  - 8.8.8.8:53
+  - 1.1.1.1:53
+domain_resolvers:
+  - domain: google.com
+    resolvers:
+      - 1.1.1.1:53
+      - 4.2.2.2:53
