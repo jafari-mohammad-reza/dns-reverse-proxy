@@ -15,14 +15,14 @@ type Server struct {
 	dnsServer       *dns.Server
 	domainResolvers map[string][]string
 	domainRedirects map[string]DomainRedirect
-	blockedDomains  map[string]interface{}
+	blockedDomains  map[string]struct{}
 	logger          ILogger
 }
 
 func NewServer(conf *Conf, logger ILogger) *Server {
 	domainResolvers := make(map[string][]string, len(conf.DomainResolvers))
 	domainRedirects := make(map[string]DomainRedirect, len(conf.DomainRedirect))
-	blockedDomains := make(map[string]interface{}, len(conf.BlockedDomains))
+	blockedDomains := make(map[string]struct{}, len(conf.BlockedDomains))
 	for _, resolver := range conf.DomainResolvers {
 		domainResolvers[fmt.Sprintf("%s.", resolver.Domain)] = resolver.Resolvers
 	}
@@ -30,7 +30,7 @@ func NewServer(conf *Conf, logger ILogger) *Server {
 		domainRedirects[fmt.Sprintf("%s.", redirect.Domain)] = DomainRedirect{RedirectDomain: fmt.Sprintf("%s.", redirect.RedirectDomain), Ip: redirect.Ip}
 	}
 	for _, domain := range conf.BlockedDomains {
-		blockedDomains[fmt.Sprintf("%s.", domain)] = nil
+		blockedDomains[fmt.Sprintf("%s.", domain)] = struct{}{}
 	}
 	return &Server{
 		conf:            conf,
