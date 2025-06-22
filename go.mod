@@ -3,6 +3,7 @@ module dns-reverse-proxy
 go 1.24.1
 
 require (
+	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/miekg/dns v1.1.66
 	github.com/spf13/viper v1.20.1

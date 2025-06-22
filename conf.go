@@ -13,8 +13,14 @@ type Conf struct {
 	Port            int              `mapstructure:"port"  validate:"required"`
 	UpstreamAddrs   []string         `mapstructure:"upstream_addrs"  validate:"required"`
 	DomainResolvers []DomainResolver `mapstructure:"domain_resolvers"`
+	Kafka           KafkaConf        `mapstructure:"kafka"`
 }
 
+type KafkaConf struct {
+	Servers  string `mapstructure:"servers"`
+	ClientId string `mapstructure:"client_id"`
+	LogTopic string `mapstructure:"log_topic"`
+}
 type DomainResolver struct {
 	Domain    string   `mapstructure:"domain"  validate:"required"`
 	Resolvers []string `mapstructure:"resolvers"  validate:"required"`
