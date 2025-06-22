@@ -24,6 +24,7 @@ type Log struct {
 	ClientIp string   `json:"client_ip"`
 	Qtype    string   `json:"qtype"`
 	Resolver string   `json:"resolver"`
+	Message  string   `json:"message"`
 }
 type ILogger interface {
 	Init() error
@@ -33,15 +34,17 @@ type ILogger interface {
 	Debug(log Log) error
 }
 type Logger struct {
-	conf     *Conf
-	mu       sync.Mutex
-	producer *kafka.Producer
+	conf         *Conf
+	mu           sync.Mutex
+	producer     *kafka.Producer
+	deliveryChan chan kafka.Event
 }
 
 func NewLogger(conf *Conf) ILogger {
 	return &Logger{
-		conf: conf,
-		mu:   sync.Mutex{},
+		conf:         conf,
+		mu:           sync.Mutex{},
+		deliveryChan: make(chan kafka.Event, 1000),
 	}
 }
 func (l *Logger) Init() error {
@@ -67,18 +70,17 @@ func (l *Logger) write(level LogLevel, entry Log) error {
 	}
 
 	topic := l.conf.Kafka.LogTopic
-	deliveryChan := make(chan kafka.Event, 1)
 
 	err = l.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Value:          data,
-	}, deliveryChan)
+	}, l.deliveryChan)
 
 	if err != nil {
 		return fmt.Errorf("failed to produce message: %w", err)
 	}
 
-	e := <-deliveryChan
+	e := <-l.deliveryChan
 	m := e.(*kafka.Message)
 	if m.TopicPartition.Error != nil {
 		return fmt.Errorf("failed to deliver message: %v", m.TopicPartition.Error)
@@ -87,7 +89,6 @@ func (l *Logger) write(level LogLevel, entry Log) error {
 	return nil
 }
 func (l *Logger) Info(log Log) error {
-	fmt.Println("send log", log)
 	return l.write(Info, log)
 }
 func (l *Logger) Warn(log Log) error {

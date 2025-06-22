@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"time"
 
 	"github.com/miekg/dns"
@@ -52,10 +53,10 @@ func (s *Server) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 		log.Println("[-] Empty DNS question received, ignoring")
 		return
 	}
-
+	clientIp, _, _ := net.SplitHostPort(w.RemoteAddr().String())
 	domain := r.Question[0]
 	log.Printf("[>] Query: %s (%s)", domain.Name, dns.TypeToString[domain.Qtype])
-	resp, err := s.resolveWithFallback(r)
+	resp, err := s.resolveWithFallback(r, clientIp)
 	if err != nil {
 		log.Printf("[-] All upstreams failed for %s: %v", domain.Name, err)
 		m := new(dns.Msg)
@@ -76,7 +77,7 @@ func (s *Server) handleDNSRequest(w dns.ResponseWriter, r *dns.Msg) {
 
 	log.Printf("[✓] Resolved %s in %s", domain.Name, time.Since(start))
 }
-func (s *Server) resolveWithFallback(r *dns.Msg) (*dns.Msg, error) {
+func (s *Server) resolveWithFallback(r *dns.Msg, clientIp string) (*dns.Msg, error) {
 	c := &dns.Client{
 		Net:     "udp",
 		Timeout: 2 * time.Second,
@@ -84,16 +85,16 @@ func (s *Server) resolveWithFallback(r *dns.Msg) (*dns.Msg, error) {
 	domainName := r.Question[0].Name
 	if resolvers, ok := s.domainResolvers[domainName]; ok {
 		for _, upstream := range resolvers {
-			return s.resolverDomain(r, c, domainName, upstream)
+			return s.resolverDomain(r, c, domainName, upstream, clientIp)
 		}
 	}
 	for _, upstream := range s.conf.UpstreamAddrs {
-		return s.resolverDomain(r, c, domainName, upstream)
+		return s.resolverDomain(r, c, domainName, upstream, clientIp)
 	}
 
 	return nil, dns.ErrConnEmpty
 }
-func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream string) (*dns.Msg, error) {
+func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream, clientIp string) (*dns.Msg, error) {
 	log.Printf("[>] Querying upstream: %s for %s", upstream, domainName)
 	resp, _, err := c.Exchange(r, upstream)
 	if err != nil {
@@ -104,7 +105,7 @@ func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream 
 		Time:     time.Now().Format(time.RFC3339Nano),
 		Level:    Info,
 		Domain:   domainName,
-		ClientIp: "client-ip",
+		ClientIp: clientIp,
 		Qtype:    dns.TypeToString[r.Question[0].Qtype],
 		Resolver: upstream,
 	})

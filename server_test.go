@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -61,8 +62,8 @@ func TestServerHandleRequest(t *testing.T) {
 		}
 	}()
 
-	addr := "127.0.0.1:5354"
-	if err := waitForPort(addr, 5*time.Second); err != nil {
+	addr := fmt.Sprintf("127.0.0.1:%d", conf.Port)
+	if err := waitForPort(addr, 10*time.Second); err != nil {
 		t.Fatalf("DNS server not reachable at %s: %v", addr, err)
 	}
 
