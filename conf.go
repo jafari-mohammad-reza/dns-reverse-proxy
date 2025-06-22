@@ -14,6 +14,7 @@ type Conf struct {
 	UpstreamAddrs   []string         `mapstructure:"upstream_addrs"  validate:"required"`
 	DomainResolvers []DomainResolver `mapstructure:"domain_resolvers"`
 	DomainRedirect  []DomainRedirect `mapstructure:"domain_redirect"`
+	BlockedDomains  []string         `mapstructure:"blocked_domains"`
 	Kafka           KafkaConf        `mapstructure:"kafka"`
 }
 

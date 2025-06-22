@@ -15,23 +15,29 @@ type Server struct {
 	dnsServer       *dns.Server
 	domainResolvers map[string][]string
 	domainRedirects map[string]DomainRedirect
+	blockedDomains  map[string]interface{}
 	logger          ILogger
 }
 
 func NewServer(conf *Conf, logger ILogger) *Server {
 	domainResolvers := make(map[string][]string, len(conf.DomainResolvers))
 	domainRedirects := make(map[string]DomainRedirect, len(conf.DomainRedirect))
+	blockedDomains := make(map[string]interface{}, len(conf.BlockedDomains))
 	for _, resolver := range conf.DomainResolvers {
 		domainResolvers[fmt.Sprintf("%s.", resolver.Domain)] = resolver.Resolvers
 	}
 	for _, redirect := range conf.DomainRedirect {
 		domainRedirects[fmt.Sprintf("%s.", redirect.Domain)] = DomainRedirect{RedirectDomain: fmt.Sprintf("%s.", redirect.RedirectDomain), Ip: redirect.Ip}
 	}
+	for _, domain := range conf.BlockedDomains {
+		blockedDomains[fmt.Sprintf("%s.", domain)] = nil
+	}
 	return &Server{
 		conf:            conf,
 		domainResolvers: domainResolvers,
 		logger:          logger,
 		domainRedirects: domainRedirects,
+		blockedDomains:  blockedDomains,
 	}
 }
 
@@ -89,6 +95,20 @@ func (s *Server) resolveWithFallback(r *dns.Msg, clientIp string) (*dns.Msg, err
 		Timeout: 2 * time.Second,
 	}
 	domainName := r.Question[0].Name
+	if _, ok := s.blockedDomains[domainName]; ok {
+		resp := new(dns.Msg)
+		resp.SetReply(r)
+		resp.Rcode = dns.RcodeNameError
+		s.logger.Info(Log{
+			Time:     time.Now().Format(time.RFC3339Nano),
+			Level:    Info,
+			Domain:   domainName,
+			ClientIp: clientIp,
+			Qtype:    dns.TypeToString[r.Question[0].Qtype],
+			Resolver: "blocked-domain",
+		})
+		return resp, nil
+	}
 	if redirect, ok := s.domainRedirects[domainName]; ok {
 		if redirect.Ip != "" {
 			ip := net.ParseIP(redirect.Ip)

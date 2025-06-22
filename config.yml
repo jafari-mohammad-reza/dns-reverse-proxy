@@ -11,6 +11,8 @@ domain_redirect:
   - domain: youtube.com
     ip: 1.1.1.1:443
     redirect_domain: google.com
+blocked_domains:
+  - spotify.com
 kafka:
   servers: localhost:9092
   client_id: dns-server
