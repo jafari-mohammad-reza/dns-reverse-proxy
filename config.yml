@@ -7,6 +7,10 @@ domain_resolvers:
     resolvers:
       - 1.1.1.1:53
       - 4.2.2.2:53
+domain_redirect:
+  - domain: youtube.com
+    ip: 1.1.1.1:443
+    redirect_domain: google.com
 kafka:
   servers: localhost:9092
   client_id: dns-server

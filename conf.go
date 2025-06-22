@@ -13,6 +13,7 @@ type Conf struct {
 	Port            int              `mapstructure:"port"  validate:"required"`
 	UpstreamAddrs   []string         `mapstructure:"upstream_addrs"  validate:"required"`
 	DomainResolvers []DomainResolver `mapstructure:"domain_resolvers"`
+	DomainRedirect  []DomainRedirect `mapstructure:"domain_redirect"`
 	Kafka           KafkaConf        `mapstructure:"kafka"`
 }
 
@@ -24,6 +25,11 @@ type KafkaConf struct {
 type DomainResolver struct {
 	Domain    string   `mapstructure:"domain"  validate:"required"`
 	Resolvers []string `mapstructure:"resolvers"  validate:"required"`
+}
+type DomainRedirect struct {
+	Domain         string `mapstructure:"domain"  validate:"required"`
+	RedirectDomain string `mapstructure:"redirect_domain"  validate:"required"`
+	Ip             string `mapstructure:"ip"`
 }
 
 func InitConf() (*Conf, error) {

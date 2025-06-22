@@ -14,18 +14,24 @@ type Server struct {
 	conf            *Conf
 	dnsServer       *dns.Server
 	domainResolvers map[string][]string
+	domainRedirects map[string]DomainRedirect
 	logger          ILogger
 }
 
 func NewServer(conf *Conf, logger ILogger) *Server {
 	domainResolvers := make(map[string][]string, len(conf.DomainResolvers))
+	domainRedirects := make(map[string]DomainRedirect, len(conf.DomainRedirect))
 	for _, resolver := range conf.DomainResolvers {
 		domainResolvers[fmt.Sprintf("%s.", resolver.Domain)] = resolver.Resolvers
+	}
+	for _, redirect := range conf.DomainRedirect {
+		domainRedirects[fmt.Sprintf("%s.", redirect.Domain)] = DomainRedirect{RedirectDomain: fmt.Sprintf("%s.", redirect.RedirectDomain), Ip: redirect.Ip}
 	}
 	return &Server{
 		conf:            conf,
 		domainResolvers: domainResolvers,
 		logger:          logger,
+		domainRedirects: domainRedirects,
 	}
 }
 
@@ -83,6 +89,67 @@ func (s *Server) resolveWithFallback(r *dns.Msg, clientIp string) (*dns.Msg, err
 		Timeout: 2 * time.Second,
 	}
 	domainName := r.Question[0].Name
+	if redirect, ok := s.domainRedirects[domainName]; ok {
+		if redirect.Ip != "" {
+			ip := net.ParseIP(redirect.Ip)
+			if ip == nil {
+				return nil, fmt.Errorf("invalid IP for redirect: %s", redirect.Ip)
+			}
+			resp := new(dns.Msg)
+			resp.SetReply(r)
+			resp.Answer = []dns.RR{
+				&dns.A{
+					Hdr: dns.RR_Header{
+						Name:   domainName,
+						Rrtype: dns.TypeA,
+						Class:  dns.ClassINET,
+						Ttl:    60,
+					},
+					A: ip,
+				},
+			}
+			s.logger.Info(Log{
+				Time:     time.Now().Format(time.RFC3339Nano),
+				Level:    Info,
+				Domain:   domainName,
+				ClientIp: clientIp,
+				Qtype:    dns.TypeToString[r.Question[0].Qtype],
+				Resolver: "static-redirect",
+			})
+			return resp, nil
+		}
+		if redirect.RedirectDomain != "" {
+			redirectedDomain := dns.Fqdn(redirect.RedirectDomain)
+			redirectedMsg := r.Copy()
+			redirectedMsg.Question[0].Name = redirectedDomain
+
+			if resolvers, ok := s.domainResolvers[redirectedDomain]; ok {
+				for _, upstream := range resolvers {
+					if resp, err := s.resolverDomain(redirectedMsg, c, redirectedDomain, upstream, clientIp); err == nil {
+						resp.SetReply(r)
+						resp.Question[0].Name = domainName
+						for _, ans := range resp.Answer {
+							ans.Header().Name = domainName
+						}
+						return resp, nil
+					}
+				}
+			}
+
+			for _, upstream := range s.conf.UpstreamAddrs {
+				if resp, err := s.resolverDomain(redirectedMsg, c, redirectedDomain, upstream, clientIp); err == nil {
+					resp.SetReply(r)
+					resp.Question[0].Name = domainName
+					for _, ans := range resp.Answer {
+						ans.Header().Name = domainName
+					}
+					return resp, nil
+				}
+			}
+		}
+
+	}
+
 	if resolvers, ok := s.domainResolvers[domainName]; ok {
 		for _, upstream := range resolvers {
 			return s.resolverDomain(r, c, domainName, upstream, clientIp)
