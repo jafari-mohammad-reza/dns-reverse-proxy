@@ -12,12 +12,7 @@ func main() {
 		os.Exit(1)
 	}
 	logger := NewLogger(conf)
-	err = logger.Init()
-	if err != nil {
-		log.Fatalf("Failed to init logger %v", err)
-		os.Exit(1)
-	}
-	server := NewServer(conf , logger)
+	server := NewServer(conf, logger)
 	err = server.Start()
 	if err != nil {
 		log.Fatal("Failed to start server:", err)

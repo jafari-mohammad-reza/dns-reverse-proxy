@@ -49,15 +49,6 @@ services:
     volumes:
       - ./confs/loki-config.yaml:/etc/loki/local-config.yaml
       - ./loki:/var/loki
-  clickhouse:
-    image: docker.arvancloud.ir/yandex/clickhouse-server:21.8.10.19
-    container_name: clickhouse
-    ports:
-      - "8123:8123" # HTTP interface
-      - "9000:9000" # Native client
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-
   vector:
     image: docker.arvancloud.ir/timberio/vector:0.25.1-alpine
     container_name: vector

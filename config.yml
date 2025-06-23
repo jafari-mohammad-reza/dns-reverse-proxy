@@ -9,10 +9,13 @@ domain_resolvers:
       - 4.2.2.2:53
 domain_redirect:
   - domain: youtube.com
-    ip: 1.1.1.1:443
+    ip: 1.1.1.1
     redirect_domain: google.com
 blocked_domains:
   - spotify.com
+log:  
+  logger: file
+  log_path: dns.log
 kafka:
   servers: localhost:9092
   client_id: dns-server

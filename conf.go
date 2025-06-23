@@ -15,9 +15,13 @@ type Conf struct {
 	DomainResolvers []DomainResolver `mapstructure:"domain_resolvers"`
 	DomainRedirect  []DomainRedirect `mapstructure:"domain_redirect"`
 	BlockedDomains  []string         `mapstructure:"blocked_domains"`
+	Log             LogConf          `mapstructure:"log"`
 	Kafka           KafkaConf        `mapstructure:"kafka"`
 }
-
+type LogConf struct {
+	Logger  LoggerType `mapstructure:"logger" validate:"required"`
+	LogPath string     `mapstructure:"log_path"`
+}
 type KafkaConf struct {
 	Servers  string `mapstructure:"servers"`
 	ClientId string `mapstructure:"client_id"`
@@ -29,7 +33,7 @@ type DomainResolver struct {
 }
 type DomainRedirect struct {
 	Domain         string `mapstructure:"domain"  validate:"required"`
-	RedirectDomain string `mapstructure:"redirect_domain"  validate:"required"`
+	RedirectDomain string `mapstructure:"redirect_domain"`
 	Ip             string `mapstructure:"ip"`
 }
 

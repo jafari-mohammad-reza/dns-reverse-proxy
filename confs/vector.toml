@@ -32,11 +32,3 @@ healthcheck.enabled = true
 [sinks.loki.request]
 retry_attempts = 10
 retry_backoff_secs = 2
-
-[sinks.clickhouse]
-type = "clickhouse"
-inputs = ["parse_json"]
-database = "default"
-table = "dns_logs"
-endpoint = "http://clickhouse:8123"
-compression = "none"

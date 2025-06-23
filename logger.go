@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -27,13 +29,19 @@ type Log struct {
 	Message  string   `json:"message"`
 }
 type ILogger interface {
-	Init() error
 	Info(log Log) error
 	Warn(log Log) error
 	Error(log Log) error
 	Debug(log Log) error
 }
-type Logger struct {
+type LoggerType string
+
+const (
+	Kafka LoggerType = "kafka"
+	File  LoggerType = "file"
+)
+
+type KafkaLogger struct {
 	conf         *Conf
 	mu           sync.Mutex
 	producer     *kafka.Producer
@@ -41,13 +49,39 @@ type Logger struct {
 }
 
 func NewLogger(conf *Conf) ILogger {
-	return &Logger{
-		conf:         conf,
-		mu:           sync.Mutex{},
-		deliveryChan: make(chan kafka.Event, 1000),
+	loggerType := conf.Log.Logger
+	switch loggerType {
+	case Kafka:
+		logger := &KafkaLogger{
+			conf:         conf,
+			mu:           sync.Mutex{},
+			deliveryChan: make(chan kafka.Event, 1000),
+		}
+		err := logger.Init()
+		if err != nil {
+			log.Fatalf("Failed to init logger %v", err)
+			os.Exit(1)
+		}
+		return logger
+	case File:
+		file, err := os.OpenFile(conf.Log.LogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatalf("Failed to init logger %v", err)
+			os.Exit(1)
+		}
+		return &FileLogger{
+			conf: conf,
+			mu:   sync.Mutex{},
+			file: file,
+		}
+
+	default:
+		log.Fatalf("Invalid Logger Type")
+		os.Exit(1)
 	}
+	return nil
 }
-func (l *Logger) Init() error {
+func (l *KafkaLogger) Init() error {
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": l.conf.Kafka.Servers,
 		"client.id":         l.conf.Kafka.ClientId,
@@ -60,7 +94,7 @@ func (l *Logger) Init() error {
 	return nil
 }
 
-func (l *Logger) write(level LogLevel, entry Log) error {
+func (l *KafkaLogger) write(level LogLevel, entry Log) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -88,15 +122,44 @@ func (l *Logger) write(level LogLevel, entry Log) error {
 
 	return nil
 }
-func (l *Logger) Info(log Log) error {
+func (l *KafkaLogger) Info(log Log) error {
 	return l.write(Info, log)
 }
-func (l *Logger) Warn(log Log) error {
+func (l *KafkaLogger) Warn(log Log) error {
 	return l.write(Warn, log)
 }
-func (l *Logger) Error(log Log) error {
+func (l *KafkaLogger) Error(log Log) error {
 	return l.write(Error, log)
 }
-func (l *Logger) Debug(log Log) error {
+func (l *KafkaLogger) Debug(log Log) error {
+	return l.write(Debug, log)
+}
+
+type FileLogger struct {
+	conf *Conf
+	mu   sync.Mutex
+	file *os.File
+}
+
+func (l *FileLogger) write(level LogLevel, entry Log) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	logEntry := fmt.Sprintf("[%s] At: %s - ClientIp: %s - Domain: %s , Resolver: %s - Question: %s\n", level, entry.Time, entry.ClientIp, entry.Domain, entry.Resolver, entry.Qtype)
+	_, err := l.file.WriteString(logEntry)
+	if err != nil {
+		return fmt.Errorf("failed to write log: %w", err)
+	}
+	return nil
+}
+func (l *FileLogger) Info(log Log) error {
+	return l.write(Info, log)
+}
+func (l *FileLogger) Warn(log Log) error {
+	return l.write(Warn, log)
+}
+func (l *FileLogger) Error(log Log) error {
+	return l.write(Error, log)
+}
+func (l *FileLogger) Debug(log Log) error {
 	return l.write(Debug, log)
 }
