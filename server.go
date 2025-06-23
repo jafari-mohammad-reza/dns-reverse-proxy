@@ -144,20 +144,7 @@ func (s *Server) resolveWithFallback(r *dns.Msg, clientIp string) (*dns.Msg, err
 			redirectedMsg.Question[0].Name = redirectedDomain
 
 			if resolvers, ok := s.domainResolvers[redirectedDomain]; ok {
-				for _, upstream := range resolvers {
-					if resp, err := s.resolverDomain(redirectedMsg, c, redirectedDomain, upstream, clientIp); err == nil {
-						resp.SetReply(r)
-						resp.Question[0].Name = domainName
-						for _, ans := range resp.Answer {
-							ans.Header().Name = domainName
-						}
-						return resp, nil
-					}
-				}
-			}
-
-			for _, upstream := range s.conf.UpstreamAddrs {
-				if resp, err := s.resolverDomain(redirectedMsg, c, redirectedDomain, upstream, clientIp); err == nil {
+				if resp, err := s.resolverDomain(redirectedMsg, c, resolvers, redirectedDomain, clientIp); err == nil {
 					resp.SetReply(r)
 					resp.Question[0].Name = domainName
 					for _, ans := range resp.Answer {
@@ -166,22 +153,55 @@ func (s *Server) resolveWithFallback(r *dns.Msg, clientIp string) (*dns.Msg, err
 					return resp, nil
 				}
 			}
+
+			if resp, err := s.resolverDomain(redirectedMsg, c, s.conf.UpstreamAddrs, redirectedDomain, clientIp); err == nil {
+				resp.SetReply(r)
+				resp.Question[0].Name = domainName
+				for _, ans := range resp.Answer {
+					ans.Header().Name = domainName
+				}
+				return resp, nil
+			}
 		}
 
 	}
 
 	if resolvers, ok := s.domainResolvers[domainName]; ok {
-		for _, upstream := range resolvers {
-			return s.resolverDomain(r, c, domainName, upstream, clientIp)
-		}
+		return s.resolverDomain(r, c, resolvers, domainName, clientIp)
 	}
-	for _, upstream := range s.conf.UpstreamAddrs {
-		return s.resolverDomain(r, c, domainName, upstream, clientIp)
+
+	return s.resolverDomain(r, c, s.conf.UpstreamAddrs, domainName, clientIp)
+}
+func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, upstreams []string, domainName, clientIp string) (*dns.Msg, error) {
+	respChan := make(chan *dns.Msg, len(upstreams))
+	errChan := make(chan error, len(upstreams))
+
+	for _, upstream := range upstreams {
+		up := upstream
+		go func() {
+			resp, err := s.resolve(r, c, domainName, up, clientIp)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			respChan <- resp
+		}()
+	}
+
+	for range upstreams {
+		select {
+		case resp := <-respChan:
+			return resp, nil
+		case <-errChan:
+
+		case <-time.After(2 * time.Second):
+			return nil, dns.ErrConnEmpty
+		}
 	}
 
 	return nil, dns.ErrConnEmpty
 }
-func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream, clientIp string) (*dns.Msg, error) {
+func (s *Server) resolve(r *dns.Msg, c *dns.Client, domainName, upstream, clientIp string) (*dns.Msg, error) {
 	log.Printf("[>] Querying upstream: %s for %s", upstream, domainName)
 	resp, _, err := c.Exchange(r, upstream)
 	if err != nil {
@@ -200,5 +220,4 @@ func (s *Server) resolverDomain(r *dns.Msg, c *dns.Client, domainName, upstream,
 		return resp, nil
 	}
 	return nil, fmt.Errorf("[-] Upstream %s returned non-success Rcode: %d", upstream, resp.Rcode)
-
 }
