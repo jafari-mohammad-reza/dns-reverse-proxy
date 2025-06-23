@@ -58,7 +58,7 @@ services:
     depends_on:
       - kafka
       - loki
-      - clickhouse
+    
     restart: unless-stopped
     command: ["sleep", "30"]
 
@@ -74,8 +74,8 @@ services:
       - ./confs/grafana/:/etc/grafana/provisioning/
     depends_on:
       - loki
-      - clickhouse
+    
 
 volumes:
-  clickhouse-data:
+
   grafana-data:
